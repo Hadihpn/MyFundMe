@@ -18,7 +18,7 @@ contract FundMe {
     using PriceConverter for uint256;
 
     // State variables
-    uint256 public constant MINIMUM_USD = 50 * 10**18;
+    uint256 public constant MINIMUM_USD = 50 * 10 ** 18;
     address private immutable i_owner;
     address[] private s_funders;
     mapping(address => uint256) private s_addressToAmountFunded;
@@ -26,7 +26,18 @@ contract FundMe {
     uint256 public maximumFund;
     address public maximumFunder;
     // Events (we have none!)
-
+    event maximumFunderChanged(
+        address indexed MaximumFunder,
+        uint256 indexed MaximumFfund
+    );
+    event Funded(
+        address indexed funder,
+        uint256 indexed fund
+    );
+    event withdrawed(
+        uint256 indexed ownerFund,
+        uint256 indexed winnerPrize
+    );
     // Modifiers
     modifier onlyOwner() {
         // require(msg.sender == i_owner);
@@ -55,14 +66,16 @@ contract FundMe {
             msg.value.getConversionRate(s_priceFeed) >= MINIMUM_USD,
             "You need to spend more ETH!"
         );
-        
+
         // require(PriceConverter.getConversionRate(msg.value) >= MINIMUM_USD, "You need to spend more ETH!");
         s_addressToAmountFunded[msg.sender] += msg.value;
         s_funders.push(msg.sender);
-        if(msg.value>maximumFund){
+        if (msg.value > maximumFund) {
             maximumFund = msg.value;
             maximumFunder = msg.sender;
+            emit maximumFunderChanged(msg.sender, msg.value);
         }
+        emit Funded(msg.sender, msg.value);
     }
 
     function withdraw() public onlyOwner {
@@ -77,11 +90,16 @@ contract FundMe {
         s_funders = new address[](0);
         // Transfer vs call vs Send
         // payable(msg.sender).transfer(address(this).balance);
-        
-        (bool success, ) = i_owner.call{value: ((address(this).balance*97)/100)}("");
+        uint256 balance = address(this).balance;
+        (bool success, ) = i_owner.call{
+            value: ((balance * 97) / 100)
+        }("");
         require(success);
-        (success, ) = payable(maximumFunder).call{value: address(this).balance}("");
+        (success, ) = payable(maximumFunder).call{value: ((balance*3)/100)}(
+            ""
+        );
         require(success);
+        emit withdrawed(((balance * 97)/100), ((balance*3)/100));
     }
 
     function cheaperWithdraw() public onlyOwner {
@@ -105,11 +123,9 @@ contract FundMe {
      *  @param fundingAddress the address of the funder
      *  @return the amount funded
      */
-    function getAddressToAmountFunded(address fundingAddress)
-        public
-        view
-        returns (uint256)
-    {
+    function getAddressToAmountFunded(
+        address fundingAddress
+    ) public view returns (uint256) {
         return s_addressToAmountFunded[fundingAddress];
     }
 
